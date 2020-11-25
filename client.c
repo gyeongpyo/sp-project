@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <unistd.h> 
 #include <string.h>
 #include <arpa/inet.h>
@@ -13,9 +14,14 @@
 #define INVISIBLE_MODE	0
 #define VISIBLE_MODE	1
 
+#define TESTSIZ		100
+
 void* request(void* arg);
 void* response(void* arg);
 void echomode(int option);
+
+int log_fd, log_idx = 0, n_chars, new_nchars;
+char logbuf[BUFSIZ] = { 0 };
 
 int main(int argc, char *argv[]) {
 
@@ -43,6 +49,7 @@ int main(int argc, char *argv[]) {
     /* login */
     char login_info[BUF_SIZE];
     char pw[100];
+    char namebuf[255] = { 0 };
 
     echomode(INVISIBLE_MODE);
     printf("Enter Password: ");
@@ -51,7 +58,11 @@ int main(int argc, char *argv[]) {
 
     sprintf(login_info, "%s,%s,%s", argv[3], pw, argv[4]);
     write(sock, login_info, strlen(login_info));
-
+    sprintf(namebuf, "%s.log", argv[4]);
+    
+    if((log_fd = open(namebuf, O_WRONLY | O_CREAT | O_APPEND, 0644)) == -1)
+	oops("open");
+ 
     pthread_create(&res_thread, NULL, response, (void*)&sock);
     pthread_create(&req_thread, NULL, request, (void*)&sock);
 
@@ -91,13 +102,37 @@ void* request(void* arg) {
     char req[BUF_SIZE];
     while (1) {   
 	fgets(req, BUF_SIZE, stdin);
-	req[strlen(req)-1] = '\0';
-	if (!strcmp(req,"q\n")||!strcmp(req,"Q\n")) {
+	n_chars = strlen(req);
+	if(log_idx + n_chars <= TESTSIZ - 1)
+	{
+	    strcat(logbuf, req);
+	    log_idx += n_chars;
+	}
+	else
+	{
+	    logbuf[log_idx + 1] = '\0';
+	    new_nchars = 0;
+	    while((new_nchars += write(log_fd, logbuf, log_idx)) < log_idx)
+		;
+	    strcpy(logbuf, req);
+	    log_idx = n_chars;
+	}	
+	req[n_chars - 1] = '\0';
+	if (!strcmp(req,"q")||!strcmp(req,"Q")) {
+	    if(log_idx > 0)
+	    {
+		logbuf[log_idx + 1] = '\0';
+		new_nchars = 0;
+		while((new_nchars += write(log_fd, logbuf, log_idx)) < log_idx)
+		    ;
+	    }
+	    close(log_fd);
 	    close(sock);
 	    exit(0);
 	}
 	write(sock, req, strlen(req));
     }
+    
     return NULL;
 }
 
