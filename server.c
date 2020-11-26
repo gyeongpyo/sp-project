@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -9,6 +12,7 @@
 #include "/usr/include/mysql/mysql.h"
 
 #define BUF_SIZE 1024
+#define oops(s)	{   perror(s);	exit(1);    }
 
 void* handle_req(void* arg);
 void error_handling(char* query);
@@ -27,6 +31,9 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
   
+	if(mkdir("querylog", 0775) == -1 && errno != EEXIST)
+	    oops("log directory make failed");
+
 	serv_sock = socket(PF_INET, SOCK_STREAM, 0);
 
 	memset(&serv_adr, 0, sizeof(serv_adr));
@@ -89,7 +96,7 @@ void* handle_req(void* arg) {
 
 	int clnt_sock=*((int*)arg);
 	int str_len=0, i;
-	char query[BUF_SIZE];
+	char query[BUF_SIZE] = { '\0' };
 	
     /* information for connecting to DBMS */
     char *db_ip = "localhost";

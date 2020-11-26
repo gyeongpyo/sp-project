@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h> 
 #include <string.h>
+#include <time.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <pthread.h>
@@ -58,11 +59,22 @@ int main(int argc, char *argv[]) {
 
     sprintf(login_info, "%s,%s,%s", argv[3], pw, argv[4]);
     write(sock, login_info, strlen(login_info));
-    sprintf(namebuf, "%s.log", argv[4]);
+
+    sprintf(namebuf, "querylog/%s.log", argv[4]);
     
     if((log_fd = open(namebuf, O_WRONLY | O_CREAT | O_APPEND, 0644)) == -1)
 	oops("open");
- 
+    
+    time_t t = time(NULL);
+    sprintf(logbuf, "[USER : %s DB : %s] - %s \n", argv[3], argv[4], ctime(&t));
+    new_nchars = 0;
+    log_idx = strlen(logbuf);
+
+    while((new_nchars = write(log_fd, logbuf, log_idx)) < log_idx)
+	;
+    logbuf[0] = '\0';
+    log_idx = 0;
+
     pthread_create(&res_thread, NULL, response, (void*)&sock);
     pthread_create(&req_thread, NULL, request, (void*)&sock);
 
