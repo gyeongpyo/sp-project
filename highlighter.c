@@ -34,33 +34,13 @@ char* check_keyword(char* str)
 
 void print_highlight(char* str)
 {
-	/*
-	char temp[1000];
-	strcpy(temp, str);
-	int str_p = 0;
-	char* token = strtok(temp, " ");	
-	while ( token != NULL ) {
-		char* res = check_keyword(token);
-		if (res != NULL) {
-			printf(CYN "%s", res);
-		} else {
-			printf(RESET "%s", token);
-		}
-
-		while (isalnum(str[str_p]) && isalnum(str[str_p+1]));
-		while (!isalnum(str[++str_p]) {
-			printf(" ");
-		}
-		
-		token = strtok(NULL, " ");
-	}
-	*/
 	int i = 0;
 
 	char temp[1000];
 	int temp_idx = 0;
 	while (str[i]) {
-		if ( (isalnum(str[i]) || str[i]=='_' || str[i]=='-' || str[i] == ';') &&
+		if ( (isalnum(str[i]) || str[i]=='_' || str[i]=='-' || str[i] == ';' || str[i] == '&' ||
+					str[i] == '|' || str[i] == '*') &&
 			       	(str[i+1]==' '||str[i+1]=='\0' ) ) {
 			temp[temp_idx++] = str[i];
 			temp[temp_idx] = '\0';
@@ -82,7 +62,7 @@ void print_highlight(char* str)
 	}
 }
 
-char _getch()
+char process()
 {
 	char c;
 	struct termios ter;
@@ -119,7 +99,7 @@ char _getch()
 				p++;
 			}		
 		}
-	} else if (c == ' ' || c == '_' || c == '-' || isalnum(c) || c == ';') {
+	} else if (c == ' ' || c == '_' || c == '-' || isalnum(c) || c == ';' || c == '&' || c == '|' || c == '*') {
 		strcpy(temp, buf);
 		temp[p] = c;
 		strcpy(temp+p+1, buf+p);
@@ -134,17 +114,20 @@ char _getch()
 		print_highlight(buf);	
 		printf("\33[1000000D");
 		printf("\33[%dC", p);
+	} else if (c == '\n') {
+		printf("\n");
+		memset(buf, 0, sizeof(buf));
+		p = 0;
 	}
 	ter.c_lflag |= ICANON;
 	ter.c_lflag |= ECHO;
 	tcsetattr(0, TCSANOW, &ter);
 	return c;
 }
-
 int main() 
 {
 	while(1) {
-		char c = _getch();
+		char c = process();
 	}
 	return 0;
 }

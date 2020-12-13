@@ -1,5 +1,8 @@
+// client.c
 #include <stdio.h>
 #include <stdlib.h>
+#include <termios.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <unistd.h> 
 #include <string.h>
@@ -16,7 +19,6 @@
 #define VISIBLE_MODE	1
 
 #define TESTSIZ		100
-
 void* request(void* arg);
 void* response(void* arg);
 void echomode(int option);
@@ -24,8 +26,131 @@ void echomode(int option);
 int log_fd, log_idx = 0, n_chars, new_nchars;
 char logbuf[BUFSIZ] = { 0 };
 
-int main(int argc, char *argv[]) {
+char buf[BUFSIZ];
+char bp_buf[BUFSIZ];
+char temp[BUFSIZ];
+int p = 0;
 
+#define BLACK "\x1b[30m"
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define YEL   "\x1B[33m"
+#define BLU   "\x1B[34m"
+#define MAG   "\x1B[35m"
+#define CYN   "\x1B[36m"
+#define WHT   "\x1B[37m"
+#define RESET "\x1B[0m"
+char* keyword[100] = {"SELECT", "FROM", "WHERE", "INSERT", NULL};
+
+char* check_keyword(char* str)
+{
+	for (int i = 0; keyword[i]; ++i) {
+		if (!strcasecmp(keyword[i], str)) {
+			return keyword[i];
+		}
+	}
+	return NULL;
+}
+
+void print_highlight(char* str)
+{
+	int i = 0;
+
+	char temp[1000];
+	int temp_idx = 0;
+	while (str[i]) {
+		if ( (isalnum(str[i]) || str[i]=='_' || str[i]=='-' || str[i] == ';' || str[i] == '&' ||
+					str[i] == '|' || str[i] == '*' || str[i] == '.') &&
+			       	(str[i+1]==' '||str[i+1]=='\0' ) ) {
+			temp[temp_idx++] = str[i];
+			temp[temp_idx] = '\0';
+			temp_idx = 0;
+
+			char* res = check_keyword(temp);
+
+			if (res != NULL) {
+				printf(CYN "%s", res);
+			} else {
+				printf(RESET "%s", temp);
+			}
+		} else if (str[i] == ' ') {
+			printf(" ");
+		} else {
+			temp[temp_idx++] = str[i];	
+		}
+		i++;
+	}
+}
+
+#define PROMPLEN 7
+char process()
+{
+	char c;
+	struct termios ter;
+	tcgetattr(0, &ter);
+	ter.c_lflag &= ~ICANON;
+	ter.c_lflag &= ~ECHO;
+	tcsetattr(0, TCSANOW, &ter);
+
+	c = getchar();
+	if (c == 127 && p >= 0) {
+		if (p > 0) {
+			strcpy(temp, buf);
+			strcpy(temp+p-1, buf+p);
+			strcpy(buf, temp);	
+			--p;	
+
+			printf("\33[K");
+			printf("\33[1000000D");
+			printf("\33[%dC", PROMPLEN);
+			//printf("%s      %d", buf, p);
+			print_highlight(buf);	
+			printf(" ");
+			printf("\33[1000000D");
+			printf("\33[%dC", p+1+PROMPLEN);
+			printf("\33[D");
+		}
+	} else if (c == '\33') {
+		c = getchar();
+		if ( (c = getchar()) == 'D' ) {
+			printf("\33[D");
+			if (p > 0) {
+				p--;
+			}
+		} else if ( c == 'C') {
+			if (strlen(buf) > p) {
+				printf("\33[C");
+				p++;
+			}		
+		}
+	} else if (c == ' ' || c == '_' || c == '-' || isalnum(c) ||
+			c == ';' || c == '&' || c == '|' || c == '*' || c == '.') {
+		strcpy(temp, buf);
+		temp[p] = c;
+		strcpy(temp+p+1, buf+p);
+		strcpy(buf, temp);
+		p++;
+
+		printf("\33[K");
+		printf("\33[1000000D");
+		//printf("%s       ", buf);
+		printf("\33[%dC", PROMPLEN);
+		print_highlight(buf);	
+		printf("\33[1000000D");
+		printf("\33[%dC", p+PROMPLEN);
+	} else if (c == '\n') {
+		printf("\n");
+		strcpy(bp_buf, buf);
+		memset(buf, 0, sizeof(buf));
+		p = 0;
+	}
+	ter.c_lflag |= ICANON;
+	ter.c_lflag |= ECHO;
+	tcsetattr(0, TCSANOW, &ter);
+	return c;
+}
+
+int main(int argc, char *argv[]) {
     int sock;
     struct sockaddr_in serv_addr;
     pthread_t req_thread, res_thread;
@@ -112,8 +237,17 @@ void* request(void* arg) {
 
     int sock = *((int*)arg);
     char req[BUF_SIZE];
+    int req_idx = 0;
     while (1) {   
-	fgets(req, BUF_SIZE, stdin);
+	//fgets(req, BUF_SIZE, stdin);
+	printf("mysql> ");
+	while (1) {
+		// assume that it reads only one line
+		if (process() == '\n') {
+			break;
+		}
+	}
+	strcpy(req, bp_buf);
 	n_chars = strlen(req);
 	if(log_idx + n_chars <= TESTSIZ - 1)
 	{
@@ -142,6 +276,9 @@ void* request(void* arg) {
 	    close(sock);
 	    exit(0);
 	}
+	printf("\nreq: %s\n", req);
+	printf("\nbp_buf: %s\n", bp_buf);
+
 	write(sock, req, strlen(req));
     }
     
@@ -149,7 +286,6 @@ void* request(void* arg) {
 }
 
 void* response(void* arg) {
-
     int sock = *((int*)arg);
     char res[BUF_SIZE];
     int str_len;

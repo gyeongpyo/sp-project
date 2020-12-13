@@ -122,7 +122,7 @@ void* handle_req(void* arg) {
     MYSQL_RES *rs;    
     MYSQL_ROW row;
 	while(1) {
-        send_status(clnt_sock, "mysql> ");
+        //send_status(clnt_sock, "mysql> ");
         if (!(str_len=read(clnt_sock, query, BUF_SIZE-1))) {
             break;
         }
@@ -140,7 +140,7 @@ void* handle_req(void* arg) {
                 printf("%s\n", row[1]);
             }
         }
-	    //write(clnt_sock, query, str_len);
+	    write(clnt_sock, query, str_len);
     }
 	
     printf("Disconnect client%d\n\n", clnt_sock);
