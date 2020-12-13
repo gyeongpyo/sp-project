@@ -3,7 +3,9 @@
 #include <string.h>
 #include <regex.h>
 #include <libgen.h>
+#include <ctype.h>
 
+#define BLACK "\x1b[30m"
 #define RED   "\x1B[31m"
 #define GRN   "\x1B[32m"
 #define YEL   "\x1B[33m"
@@ -17,6 +19,69 @@ char buf[BUFSIZ];
 char temp[BUFSIZ];
 int p = 0;
 int tail = 0;
+
+char* keyword[100] = {"SELECT", "FROM", "WHERE"};
+
+char* check_keyword(char* str)
+{
+	for (int i = 0; i < 3; ++i) {
+		if (!strcasecmp(keyword[i], str)) {
+			return keyword[i];
+		}
+	}
+	return NULL;
+}
+
+void print_highlight(char* str)
+{
+	/*
+	char temp[1000];
+	strcpy(temp, str);
+	int str_p = 0;
+	char* token = strtok(temp, " ");	
+	while ( token != NULL ) {
+		char* res = check_keyword(token);
+		if (res != NULL) {
+			printf(CYN "%s", res);
+		} else {
+			printf(RESET "%s", token);
+		}
+
+		while (isalnum(str[str_p]) && isalnum(str[str_p+1]));
+		while (!isalnum(str[++str_p]) {
+			printf(" ");
+		}
+		
+		token = strtok(NULL, " ");
+	}
+	*/
+	int i = 0;
+
+	char temp[1000];
+	int temp_idx = 0;
+	while (str[i]) {
+		if ( (isalnum(str[i]) || str[i]=='_' || str[i]=='-' || str[i] == ';') &&
+			       	(str[i+1]==' '||str[i+1]=='\0' ) ) {
+			temp[temp_idx++] = str[i];
+			temp[temp_idx] = '\0';
+			temp_idx = 0;
+
+			char* res = check_keyword(temp);
+
+			if (res != NULL) {
+				printf(CYN "%s", res);
+			} else {
+				printf(RESET "%s", temp);
+			}
+		} else if (str[i] == ' ') {
+			printf(" ");
+		} else {
+			temp[temp_idx++] = str[i];	
+		}
+		i++;
+	}
+}
+
 char _getch()
 {
 	char c;
@@ -35,7 +100,8 @@ char _getch()
 			--p;	
 			printf("\33[K");
 			printf("\33[1000000D");
-			printf("%s      ", buf);
+			//printf("%s      ", buf);
+			print_highlight(buf);	
 			printf("\33[1000000D");
 			printf("\33[%dC", p+1);
 			printf("\33[D");
@@ -53,7 +119,7 @@ char _getch()
 				p++;
 			}		
 		}
-	} else {
+	} else if (c == ' ' || c == '_' || c == '-' || isalnum(c) || c == ';') {
 		strcpy(temp, buf);
 		temp[p] = c;
 		strcpy(temp+p+1, buf+p);
@@ -64,7 +130,8 @@ char _getch()
 
 		printf("\33[K");
 		printf("\33[1000000D");
-		printf("%s       ", buf);
+		//printf("%s       ", buf);
+		print_highlight(buf);	
 		printf("\33[1000000D");
 		printf("\33[%dC", p);
 	}
@@ -73,10 +140,12 @@ char _getch()
 	tcsetattr(0, TCSANOW, &ter);
 	return c;
 }
-int main() {
+
+int main() 
+{
 	while(1) {
 		char c = _getch();
 	}
-  return 0;
+	return 0;
 }
 
